@@ -2,113 +2,154 @@
 
 **Nabees Agent by Nabees Tech** is a self-hosted WhatsApp-operated assistant built on [Hermes Agent](https://hermes-agent.nousresearch.com/).
 
-The design goal is provider independence: the owner can add API base URLs, API keys and model identifiers, test compatibility, switch models and roll back without tying the agent permanently to one AI vendor.
+The design goal is provider independence: add API base URLs, API keys and model identifiers, test compatibility, switch models and roll back without tying the agent permanently to one AI vendor.
 
 ## Architecture
 
-- Runtime: upstream Hermes Agent (not a fork)
-- Messaging: Hermes built-in WhatsApp bridge (Baileys)
+- Runtime: upstream Hermes Agent, patched locally by the Nabees installer (not a fork)
+- Messaging: Hermes WhatsApp bridge (Baileys)
+- Authentication: phone-number pairing code; QR display is disabled for the Nabees pairing flow
+- Progress: cached WebP stickers sent as association reactions to the original WhatsApp task message
 - Hosting target: Linux container / Upstash Box
-- Identity: Nabees Agent, by Nabees Tech
 - AI: named custom OpenAI-compatible provider profiles
-- Tools: Hermes terminal, files, browser, skills, MCP and delegation, enabled deliberately
+- Tools: Hermes terminal, files, browser, skills, MCP and delegation
 - Safety: sender allowlist, hidden secret entry, config backups and approval gates
 
 ## Requirements
 
 - Linux environment with persistent storage
 - Python 3.10+
-- Node.js 20+ and npm (WhatsApp bridge)
-- At least one model endpoint compatible with Hermes; Hermes currently requires at least 64K context for agentic workflows
+- Node.js 20+ and npm
+- At least one model endpoint compatible with Hermes; tool calling is required for agentic workflows
 
 ## Install Hermes
 
-Use the official installer and setup wizard:
-
-```bash
+~~~bash
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 source ~/.bashrc
 hermes --version
 hermes setup
-```
+~~~
 
-Choose a working model and verify a normal chat before setting up messaging.
+Choose a working model provider and verify normal chat before configuring WhatsApp.
 
-## Install the Nabees provider manager
+## Install Wagent
 
-From this repository:
+Clone the private repository (authenticate with GitHub if prompted):
 
-```bash
+~~~bash
+cd /workspace/home
+git clone https://github.com/Nabaikabaia/Wagent.git
+cd Wagent
+
 python3 -m venv .venv
-. .venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
-python scripts/provider_manager.py --help
-```
+npm install
+~~~
 
-Add a provider. Its API key is collected with hidden terminal input and stored in Hermes' private environment file:
+Install the provider manager and progress sticker skills:
 
-```bash
+~~~bash
+bash scripts/install_skill.sh
+~~~
+
+Generate the progress sticker pack:
+
+~~~bash
+npm run build:stickers
+~~~
+
+The generator writes nine 512×512 WebP sticker assets to ~/.hermes/whatsapp/progress-stickers (or $HERMES_HOME/whatsapp/progress-stickers).
+
+## Install the WhatsApp features
+
+After Hermes is installed, run the patch installer from the activated Hermes Python environment. It locates the installed Hermes bridge and setup wizard, backs up both files, adds the pairing-code flow and authenticated sticker-reaction endpoint, and writes NABEES_WHATSAPP_AUTH_MODE=pairing-code to the private Hermes .env.
+
+~~~bash
+python scripts/install_whatsapp_features.py
+~~~
+
+If the installer cannot import Hermes modules, run it with the Python interpreter used by the Hermes CLI. It fails closed rather than patching an unknown bridge version. Original files are saved beside the patched files with a .nabees-backup-* suffix.
+
+Then pair WhatsApp:
+
+~~~bash
+hermes whatsapp
+~~~
+
+Choose bot mode or self-chat. At the bridge prompt, enter the WhatsApp number privately in the Upstash terminal using country code + digits only (no plus sign, spaces or punctuation). The terminal displays an 8-character pairing code.
+
+On the phone:
+**WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead**, then enter the displayed code.
+
+The linked session is persisted. Ordinary restarts should not require pairing again. If you deliberately unlink the companion device or remove its session credentials, pair again.
+
+Set the owner allowlist when the wizard asks. Keep it restricted to your own number; do not use * for a private assistant.
+
+## Start Nabees Agent
+
+~~~bash
+hermes gateway
+~~~
+
+Send the linked bot/self-chat a task. For tasks expected to take more than about 15 seconds, Nabees Agent should react to the original message with cached progress stickers:
+
+- ON IT — accepted
+- THINKING / SEARCHING — investigation
+- COOKING / STILL ON IT — implementation or extended work
+- ALMOST DONE — final checks
+- DONE — verified completion
+- OOPS — failure
+- YOUR MOVE — owner approval needed
+
+The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result still arrives as a normal WhatsApp response.
+
+### Progress helper
+
+The installed skill instructs the agent to call this helper with the current inbound event identifiers:
+
+~~~bash
+python3 "$NABEES_WAGENT_HOME/scripts/progress.py" on-it \
+  --chat-id 'CHAT_JID' \
+  --message-id 'INBOUND_MESSAGE_ID' \
+  --participant 'SENDER_JID'
+~~~
+
+For direct chats, omit --participant. Never invent or reuse message identifiers. If the current turn does not expose the source chat/message IDs, continue without a sticker.
+
+## Provider management
+
+Add a provider. The API key is collected with hidden terminal input and stored in Hermes' private environment file:
+
+~~~bash
 python scripts/provider_manager.py add
 python scripts/provider_manager.py list
 python scripts/provider_manager.py test PROVIDER_NAME
 python scripts/provider_manager.py activate PROVIDER_NAME
-```
+~~~
 
-The manager tests a normal chat completion and attempts a function/tool-call check. It backs up Hermes configuration before switching. If a change breaks the setup, use:
+The manager tests a normal chat completion and attempts a function/tool-call check. It backs up Hermes configuration before switching. To roll back:
 
-```bash
+~~~bash
 python scripts/provider_manager.py rollback
-```
+~~~
 
-**Important:** this first version accepts secrets through a hidden terminal prompt. Do not send API keys in ordinary WhatsApp messages; chat history and model context are not a suitable secret vault. A secure one-time credential flow can be added separately.
+A successful text-chat test does not prove full agentic compatibility. Verify tool calls in a real Hermes session before relying on a provider.
 
-## WhatsApp setup
+## Security and operational notes
 
-Hermes has a built-in Baileys WhatsApp bridge:
+- Keep API keys in Hermes' private ~/.hermes/.env, not this repository.
+- WhatsApp credentials and .bridge-token are account secrets; never commit or share them.
+- The sticker reaction endpoint is loopback-only and uses the bridge's per-session bearer token. It accepts only WebP files from the dedicated progress-sticker directory.
+- Ask for owner approval before destructive actions, purchases, external publication, third-party messaging and security/access changes.
+- Baileys is an unofficial WhatsApp Web client. Use a dedicated number where possible and avoid bulk or unsolicited messaging; account restrictions are possible.
+- The Nabees patcher is version-sensitive. It checks exact upstream source anchors and stops if the installed Hermes version differs. Backups are created before each modified source file is written.
+- The anonymous android.chat.openai.com web-chat endpoint is not an official stable API and is not the same as an OpenAI-compatible tool-calling provider. Do not use it as the sole agentic model backend.
 
-```bash
-hermes whatsapp
-hermes gateway setup
-```
+## Upstream documentation
 
-Pair by scanning the terminal QR code using WhatsApp → Settings → Linked Devices → Link a Device.
-
-Set a private sender allowlist in `~/.hermes/.env` (country code, no plus sign):
-
-```env
-WHATSAPP_ENABLED=true
-WHATSAPP_MODE=self-chat
-WHATSAPP_ALLOWED_USERS=234XXXXXXXXXX
-```
-
-Then run:
-
-```bash
-hermes gateway
-hermes gateway status
-```
-
-Use a dedicated number if possible. The Baileys bridge emulates WhatsApp Web and is unofficial, so there is some account-restriction risk. Avoid bulk or unsolicited messaging.
-
-## Identity and operating policy
-
-See [config/identity.md](config/identity.md). Nabees Agent should identify as Nabees Agent by Nabees Tech; Hermes is the underlying runtime, not its identity.
-
-## Security
-
-- Never enable wildcard sender access for a private assistant.
-- Keep API keys in Hermes' private `~/.hermes/.env`, not this repository.
-- Do not commit `~/.hermes/.env`, WhatsApp credentials, provider registry files, tokens or logs.
-- Require owner approval for destructive operations, purchases, external publication, third-party messaging and security/access changes.
-- Back up important state before modifying it.
-- Verify actions before reporting success.
-
-## Current scope and limitations
-
-The provider manager currently targets OpenAI-compatible Chat Completions endpoints using Hermes' `openai-api` provider. Not every endpoint that supports text chat supports tool calls or Hermes' full tool schema. Passing the basic chat test is not proof of full agentic compatibility; the tool-call test and a real Hermes tool-use test are also needed.
-
-Hermes remains an upstream dependency. Consult the official documentation for current setup and compatibility:
-
-- [Quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart)
-- [Providers](https://hermes-agent.nousresearch.com/docs/integrations/providers/)
-- [WhatsApp](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/whatsapp)
+- [Hermes Quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart)
+- [Hermes Providers](https://hermes-agent.nousresearch.com/docs/integrations/providers/)
+- [Hermes WhatsApp](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/whatsapp)
+- [Baileys](https://github.com/WhiskeySockets/Baileys)
