@@ -25,7 +25,7 @@ def resolve_targets():
 def replace_once(source, old, new, label):
     if new in source: return source
     count = source.count(old)
-    if count != 1: raise RuntimeError("Cannot safely patch " + label + ": expected one anchor, found " + str(count))
+    if count != 1: raise RuntimeError("Cannot safely patch " + label + ": expected one anchor, found " + str(count) + ". Installed Hermes bridge source differs from the supported layout; no bridge changes were written.")
     return source.replace(old, new, 1)
 
 def backup_and_write(path, source):
