@@ -107,15 +107,18 @@ app.post('/typing', async (req, res) => {"""
     if send_start < 0 or send_end < 0:
         raise RuntimeError("Cannot safely locate the WhatsApp /send route for Nabees rich responses")
     send_route = source[send_start:send_end]
-    pattern = re.compile(r"await\s+sendWithTimeout\s*\(\s*chatId\s*,\s*payload\s*,\s*options\s*\)")
-    replacement = ("await enqueueSend(() => sendNabeesAIRich(sock, chatId, "
-                   "typeof payload?.text === 'string' ? payload.text : "
-                   "typeof payload?.extendedTextMessage?.text === 'string' ? "
-                   "payload.extendedTextMessage.text : String(payload ?? ''))); "
+    pattern = re.compile(r"await\s+sendWithTimeout\s*\(\s*([^,]+?)\s*,\s*([^,]+?)\s*,\s*([^)]+?)\s*\)")
+    matches = list(pattern.finditer(send_route))
+    if len(matches) != 1:
+        raise RuntimeError("Cannot safely patch Nabees AIRich response in /send route: expected one sendWithTimeout call, found " + str(len(matches)))
+    match = matches[0]
+    chat_expr, payload_expr, _options_expr = (part.strip() for part in match.groups())
+    replacement = ("await enqueueSend(() => sendNabeesAIRich(sock, " + chat_expr + ", "
+                   "typeof (" + payload_expr + ")?.text === 'string' ? (" + payload_expr + ").text : "
+                   "typeof (" + payload_expr + ")?.extendedTextMessage?.text === 'string' ? "
+                   "(" + payload_expr + ").extendedTextMessage.text : String(" + payload_expr + " ?? ''))); "
                    "// NABEES_AIRICH_RESPONSE")
-    send_route, count = pattern.subn(replacement, send_route)
-    if count != 1:
-        raise RuntimeError("Cannot safely patch Nabees AIRich response in /send route: expected one sendWithTimeout(chatId, payload, options) call, found " + str(count))
+    send_route = send_route[:match.start()] + replacement + send_route[match.end():]
     source = source[:send_start] + send_route + source[send_end:]
     backup_and_write(path, source)
 
