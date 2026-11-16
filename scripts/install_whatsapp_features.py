@@ -51,7 +51,9 @@ def patch_bridge(path):
         return
     source = replace_once(source, "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';",
         "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';\nimport { buildNabeesRichPayload } from './nabees_rich.js';", "ReactImg and rich imports")
-    source = replace_once(source, "const DEFAULT_REPLY_PREFIX = '☤ *Hermes Agent*\\n────────────\\n';",\n        "const DEFAULT_REPLY_PREFIX = ''; // NABEES_RICH_RESPONSE", "remove Hermes reply branding")\n    source = replace_once(source, "let connectionState = 'disconnected';",
+    source = replace_once(source, "const DEFAULT_REPLY_PREFIX = '☤ *Hermes Agent*\\n────────────\\n';",
+        "const DEFAULT_REPLY_PREFIX = ''; // NABEES_RICH_RESPONSE", "remove Hermes reply branding")
+    source = replace_once(source, "let connectionState = 'disconnected';",
         "let connectionState = 'disconnected';\nlet nabeesPairingCodeRequested = false; // NABEES_PAIRING_CODE_FLOW", "pair-code state")
     source = replace_once(source, "    if (qr) {\n      if (PAIR_JSON) {",
         """    if (qr) {
@@ -137,14 +139,20 @@ def main():
     try:
         bridge, setup = resolve_targets()
         react_source = Path(__file__).with_name("react_img.js")
-        if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))\n        rich_source = Path(__file__).with_name("nabees_rich.js")\n        if not rich_source.is_file(): raise RuntimeError("Missing Nabees rich-response module: " + str(rich_source))
+        if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))\n        rich_source = Path(__file__).with_name("nabees_rich.js")
+        if not rich_source.is_file(): raise RuntimeError("Missing Nabees rich-response module: " + str(rich_source))
         react_dest = bridge.parent / "react_img.js"
         if not react_dest.exists() or react_dest.read_bytes() != react_source.read_bytes():
             if react_dest.exists():
                 stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                 shutil.copy2(react_dest, react_dest.with_name("react_img.js.nabees-backup-" + stamp))
             shutil.copy2(react_source, react_dest)
-        rich_dest = bridge.parent / "nabees_rich.js"\n        if not rich_dest.exists() or rich_dest.read_bytes() != rich_source.read_bytes():\n            if rich_dest.exists():\n                stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")\n                shutil.copy2(rich_dest, rich_dest.with_name("nabees_rich.js.nabees-backup-" + stamp))\n            shutil.copy2(rich_source, rich_dest)\n        patch_bridge(bridge); patch_setup(setup); set_env_mode()
+        rich_dest = bridge.parent / "nabees_rich.js"
+        if not rich_dest.exists() or rich_dest.read_bytes() != rich_source.read_bytes():
+            if rich_dest.exists():
+                stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                shutil.copy2(rich_dest, rich_dest.with_name("nabees_rich.js.nabees-backup-" + stamp))\n            shutil.copy2(rich_source, rich_dest)
+        patch_bridge(bridge); patch_setup(setup); set_env_mode()
         print("\\nNabees WhatsApp features installed.")
         print("Next: npm run build:stickers -- ~/.hermes/whatsapp/progress-stickers")
         print("Then run: hermes whatsapp")
