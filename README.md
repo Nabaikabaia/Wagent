@@ -64,13 +64,13 @@ The generator writes nine 512×512 WebP sticker assets to ~/.hermes/whatsapp/pro
 
 ## Install the WhatsApp features
 
-After Hermes is installed, run the patch installer from the activated Hermes Python environment. It locates the installed Hermes bridge and setup wizard, backs up both files, adds the pairing-code flow and authenticated sticker-reaction endpoint, and writes NABEES_WHATSAPP_AUTH_MODE=pairing-code to the private Hermes .env.
+After Hermes is installed, run the patch installer. It first tries the current Python environment, then attempts to discover and re-execute with the Python interpreter behind the Hermes CLI. It locates the installed Hermes bridge and setup wizard, backs up both files, adds the pairing-code flow and authenticated sticker-reaction endpoint, and writes NABEES_WHATSAPP_AUTH_MODE=pairing-code to the private Hermes .env.
 
 ~~~bash
 python scripts/install_whatsapp_features.py
 ~~~
 
-If the installer cannot import Hermes modules, run it with the Python interpreter used by the Hermes CLI. It fails closed rather than patching an unknown bridge version. Original files are saved beside the patched files with a .nabees-backup-* suffix.
+If the installer cannot import Hermes modules, run it explicitly with the Python interpreter used by the Hermes CLI. It fails closed rather than patching an unknown bridge version. Original files are saved beside the patched files with a .nabees-backup-* suffix.
 
 Then pair WhatsApp:
 
