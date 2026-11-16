@@ -1,0 +1,9 @@
+{
+  "name": "nabees-agent",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Nabees Agent progress sticker assets",
+  "type": "module",
+  "scripts": { "build:stickers": "node scripts/build_progress_stickers.mjs" },
+  "dependencies": { "sharp": "^0.34.5" }
+}
