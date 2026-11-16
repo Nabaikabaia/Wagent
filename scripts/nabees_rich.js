@@ -1,66 +1,69 @@
 /**
- * Nabees WhatsApp response presentation.
- * Native WhatsApp formatting plus the OpenAI contact-card quote from the
- * original Nabees GPT-5 plugin. No third-party AIRich source is redistributed.
+ * Nabees WhatsApp AIRich transport.
+ * Uses the original NixCode AIRich builder; attribution and license are
+ * preserved in ./nixcode.js. No per-message Nabees branding is injected.
  */
-const QUOTE_NUMBER = "18002428478";
-const QUOTE_DISPLAY = "OpenAI";
+import { AIRich } from './nixcode.js';
+
+const QUOTE_NUMBER = '18002428478';
+const QUOTE_DISPLAY = 'OpenAI';
 const QUOTE_VCARD =
-  "BEGIN:VCARD\n" +
-  "VERSION:3.0\n" +
-  "N:XL;OpenAI,;;;\n" +
-  "FN:OpenAI\n" +
-  "ORG:OpenAI;\n" +
-  "item1.TEL;waid=" + QUOTE_NUMBER + ":+1 (800) 242-8478\n" +
-  "item1.X-ABLabel:Phone\n" +
-  "END:VCARD";
+  'BEGIN:VCARD\n' +
+  'VERSION:3.0\n' +
+  'N:XL;OpenAI,;;;\n' +
+  'FN:OpenAI\n' +
+  'ORG:OpenAI;\n' +
+  'item1.TEL;waid=' + QUOTE_NUMBER + ':+1 (800) 242-8478\n' +
+  'item1.X-ABLabel:Phone\n' +
+  'END:VCARD';
 
-function renderMarkdownTables(text) {
-  return String(text).replace(
-    /(?:^\s*\|[^\n]*\|\s*\n?){2,}/gm,
-    (block) => {
-      const rows = block.split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("|") && line.endsWith("|"))
-        .map((line) => line.slice(1, -1).split("|").map((cell) => cell.trim()));
-      if (rows.length < 2) return block;
-      const headers = rows[0];
-      const dataRows = rows.slice(1).filter((row) =>
-        !row.every((cell) => /^:?-{3,}:?$/.test(cell))
-      );
-      if (!dataRows.length) return block;
-      return dataRows.map((row) =>
-        row.map((cell, index) => headers[index] ? "*" + headers[index] + ":* " + cell : cell).join("\n")
-      ).join("\n\n");
-    }
-  );
+function addMarkdown(rich, markdown) {
+  const source = String(markdown ?? '');
+  const codeBlock = /```([a-zA-Z0-9_+#.-]*)[^\S\r\n]*\r?\n([\s\S]*?)\r?\n```/g;
+  let cursor = 0;
+  let match;
+  while ((match = codeBlock.exec(source)) !== null) {
+    const before = source.slice(cursor, match.index);
+    if (before.trim()) rich.addText(before);
+    const language = (match[1] || 'javascript').toLowerCase();
+    rich.addCode(language, match[2]);
+    cursor = codeBlock.lastIndex;
+  }
+  const rest = source.slice(cursor);
+  if (rest.trim() || cursor === 0) rich.addText(rest || ' ');
 }
 
-export function buildNabeesRichPayload(payload, isFirstChunk = false) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-  const result = { ...payload };
-  if (typeof result.text === "string") {
-    result.text = renderMarkdownTables(result.text);
-    if (isFirstChunk) result.text = "*Nabees*\n\n" + result.text;
-  } else if (result.extendedTextMessage && typeof result.extendedTextMessage.text === "string") {
-    result.extendedTextMessage = { ...result.extendedTextMessage };
-    result.extendedTextMessage.text = renderMarkdownTables(result.extendedTextMessage.text);
-    if (isFirstChunk) result.extendedTextMessage.text = "*Nabees*\n\n" + result.extendedTextMessage.text;
+export async function sendNabeesAIRich(sock, chatId, text) {
+  if (!sock || typeof sock.relayMessage !== 'function') {
+    throw new TypeError('A connected WhatsApp socket is required for AIRich');
   }
-  if (isFirstChunk) {
-    const contextInfo = result.contextInfo || result.extendedTextMessage?.contextInfo || {};
-    const contactContext = {
-      participant: "0@s.whatsapp.net",
-      quotedMessage: { contactMessage: { displayName: QUOTE_DISPLAY, vcard: QUOTE_VCARD } },
+  if (typeof chatId !== 'string' || !chatId) {
+    throw new TypeError('A WhatsApp chat JID is required');
+  }
+
+  const rich = new AIRich(sock)
+    .setTitle('ChatGPT-5')
+    .setContextInfo({
+      participant: '0@s.whatsapp.net',
+      quotedMessage: {
+        contactMessage: {
+          displayName: QUOTE_DISPLAY,
+          vcard: QUOTE_VCARD,
+        },
+      },
       isForwarded: true,
-      forwardingScore: 999
-    };
-    if (result.extendedTextMessage) {
-      result.extendedTextMessage.contextInfo = { ...contextInfo, ...contactContext };
-    } else {
-      result.contextInfo = { ...contextInfo, ...contactContext };
-    }
-  }
-  return result;
+      forwardingScore: 999,
+    });
+
+  addMarkdown(rich, String(text ?? ''));
+
+  // AIRich.send performs relayMessage followed by sendEdit. The caller must
+  // hold the bridge send queue for the complete operation.
+  return rich.send(chatId, {
+    forwarded: true,
+    bypassDownload: true,
+    notification: false,
+  });
 }
-export default buildNabeesRichPayload;
+
+export default sendNabeesAIRich;
