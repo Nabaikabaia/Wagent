@@ -7,7 +7,7 @@ The design goal is provider independence: add API base URLs, API keys and model 
 ## Architecture
 
 - Runtime: upstream Hermes Agent, patched locally by the Nabees installer (not a fork)
-- Messaging: Hermes WhatsApp bridge (Baileys), with Nabees-branded native rich-text responses and an OpenAI contact-card quote
+- Messaging: Hermes WhatsApp bridge (Baileys), with NixCode AIRich responses, ChatGPT-5 title metadata, and a consistent OpenAI contact-card quote
 - Authentication: phone-number pairing code; QR display is disabled for the Nabees pairing flow
 - Progress: cached WebP stickers sent as association reactions to the original WhatsApp task message
 - Hosting target: Linux container / Upstash Box
@@ -64,7 +64,7 @@ The generator writes nine 512×512 WebP sticker assets to ~/.hermes/whatsapp/pro
 
 ## Install the WhatsApp features
 
-After Hermes is installed, run the patch installer. It first tries the current Python environment, then attempts to discover and re-execute with the Python interpreter behind the Hermes CLI. It locates the installed Hermes bridge and setup wizard, backs up both files, adds the pairing-code flow and authenticated sticker-reaction endpoint, and writes NABEES_WHATSAPP_AUTH_MODE=pairing-code to the private Hermes .env.
+After Hermes is installed, run the patch installer. It first tries the current Python environment, then attempts to discover and re-execute with the Python interpreter behind the Hermes CLI. It locates the installed Hermes bridge and setup wizard, backs up both files, adds the pairing-code flow, authenticated sticker-reaction endpoint, and NixCode AIRich response transport, and writes NABEES_WHATSAPP_AUTH_MODE=pairing-code to the private Hermes .env.
 
 ~~~bash
 python scripts/install_whatsapp_features.py
@@ -103,7 +103,7 @@ Send the linked bot/self-chat a task. For tasks expected to take more than about
 - OOPS — failure
 - YOUR MOVE — owner approval needed
 
-The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result arrives as a Nabees-branded WhatsApp response. The first response chunk carries the OpenAI contact-card quote, Markdown tables are rendered as readable labelled rows, and WhatsApp-native bold/italic/monospace formatting is retained. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
+The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result arrives as a Nabees-branded WhatsApp response. Every response carries the OpenAI contact-card quote. Markdown text is sent through AIRich, and fenced code blocks use AIRich code sections. No Nabees name is stamped onto each message. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
 
 ### Progress helper
 
