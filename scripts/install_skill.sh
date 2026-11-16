@@ -14,6 +14,7 @@ install_skill() {
 
 install_skill "nabees-provider-manager" "$ROOT/skills/nabees-provider-manager/SKILL.md"
 install_skill "nabees-progress-stickers" "$ROOT/skills/nabees-progress-stickers/SKILL.md"
+install_skill "nabees-file-workbench" "$ROOT/skills/nabees-file-workbench/SKILL.md"
 
 ENV_FILE="$HERMES_HOME/.env"
 touch "$ENV_FILE"
