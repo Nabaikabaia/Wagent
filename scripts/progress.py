@@ -18,7 +18,7 @@ def bridge_port():
     return int(os.environ.get("WHATSAPP_BRIDGE_PORT", "3000"))
 def send(args):
     if args.stage not in STAGES: raise ValueError("Unknown progress stage")
-    if not args.chat_id or not args.message_id: raise ValueError("--chat-id and --message-id are required")
+    if not args.chat_id: raise ValueError("--chat-id is required")
     if not (args.chat_id.endswith("@g.us") or args.chat_id.endswith("@s.whatsapp.net") or args.chat_id.endswith("@lid")):
         raise ValueError("Unsupported WhatsApp chat JID")
     token = (session_dir() / ".bridge-token").read_text(encoding="utf-8").strip()
@@ -26,12 +26,19 @@ def send(args):
     sticker_dir = hermes_home() / "whatsapp" / "progress-stickers"
     sticker_path = sticker_dir / (args.stage + ".webp")
     if not sticker_path.is_file(): raise RuntimeError("Sticker asset missing; run npm run build:stickers")
-    parent = {"remoteJid": args.chat_id, "id": args.message_id, "fromMe": False}
-    if args.participant: parent["participant"] = args.participant
-    payload = {"chatId": args.chat_id, "filePath": str(sticker_path.resolve()),
-               "parentMessageKey": parent, "associationType": 11}
+    if args.message_id:
+        parent = {"remoteJid": args.chat_id, "id": args.message_id, "fromMe": False}
+        if args.participant: parent["participant"] = args.participant
+        payload = {"chatId": args.chat_id, "filePath": str(sticker_path.resolve()),
+                   "parentMessageKey": parent, "associationType": 11}
+        route = "/react-sticker"
+    else:
+        # The bridge resolves the latest accepted inbound message key for this
+        # exact chat; the helper never invents or reuses a message ID.
+        payload = {"chatId": args.chat_id, "stage": args.stage, "associationType": 11}
+        route = "/react-sticker-latest"
     request = urllib.request.Request(
-        "http://127.0.0.1:" + str(bridge_port()) + "/react-sticker",
+        "http://127.0.0.1:" + str(bridge_port()) + route,
         data=json.dumps(payload).encode(),
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"}, method="POST")
     try:
@@ -48,7 +55,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=STAGES)
     parser.add_argument("--chat-id", required=True)
-    parser.add_argument("--message-id", required=True)
+    parser.add_argument("--message-id", help="Optional exact inbound message ID; otherwise use the bridge latest-key cache for this chat")
     parser.add_argument("--participant")
     args = parser.parse_args()
     try:
