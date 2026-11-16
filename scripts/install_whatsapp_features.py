@@ -107,7 +107,7 @@ app.post('/typing', async (req, res) => {"""
     if send_start < 0 or send_end < 0:
         raise RuntimeError("Cannot safely locate the WhatsApp /send route for Nabees rich responses")
     send_route = source[send_start:send_end]
-    pattern = re.compile(r"await\\s+sendWithTimeout\\s*\\(\\s*chatId\\s*,\\s*payload\\s*,\\s*options\\s*\\)")
+    pattern = re.compile(r"await\s+sendWithTimeout\s*\(\s*chatId\s*,\s*payload\s*,\s*options\s*\)")
     send_route, count = pattern.subn("await sendWithTimeout(chatId, buildNabeesRichPayload(payload, i === 0), options)", send_route)
     if count != 1:
         raise RuntimeError("Cannot safely patch Nabees rich WhatsApp response in /send route: expected one sendWithTimeout(chatId, payload, options) call, found " + str(count))
