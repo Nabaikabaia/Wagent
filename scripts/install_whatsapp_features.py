@@ -50,7 +50,9 @@ def patch_bridge(path):
         print("WhatsApp bridge already has Nabees features; pairing identity corrected.")
         return
     source = replace_once(source, "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';",
-        "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';\nimport { buildNabeesRichPayload } from './nabees_rich.js';", "ReactImg and rich imports")
+        "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';", "ReactImg import")
+    source = replace_once(source, "import { ReactImg } from './react_img.js';",
+        "import { ReactImg } from './react_img.js';\nimport { buildNabeesRichPayload } from './nabees_rich.js';", "Nabees rich import")
     source = replace_once(source, "const DEFAULT_REPLY_PREFIX = '☤ *Hermes Agent*\\n────────────\\n';",
         "const DEFAULT_REPLY_PREFIX = ''; // NABEES_RICH_RESPONSE", "remove Hermes reply branding")
     source = replace_once(source, "let connectionState = 'disconnected';",
@@ -96,7 +98,10 @@ app.post('/react-sticker', async (req, res) => {
 
 // Typing indicator
 app.post('/typing', async (req, res) => {"""
-    source = replace_once(source, anchor, route, "progress reaction route")\n    source = replace_once(source, "        const sent = await sendWithTimeout(chatId, payload, options);",\n        "        const nabeesPayload = buildNabeesRichPayload(payload, i === 0); // NABEES_RICH_RESPONSE\n        const sent = await sendWithTimeout(chatId, nabeesPayload, options);",\n        "Nabees rich WhatsApp response")
+    source = replace_once(source, anchor, route, "progress reaction route")
+    source = replace_once(source, "        const sent = await sendWithTimeout(chatId, payload, options);",
+        "        const nabeesPayload = buildNabeesRichPayload(payload, i === 0); // NABEES_RICH_RESPONSE\n        const sent = await sendWithTimeout(chatId, nabeesPayload, options);",
+        "Nabees rich WhatsApp response")
     backup_and_write(path, source)
 
 def patch_setup(path):
