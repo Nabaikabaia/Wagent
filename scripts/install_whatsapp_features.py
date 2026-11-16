@@ -45,14 +45,41 @@ def patch_bridge(path):
         "browser: ['Mac OS', 'Chrome', '120.0'],",
         "canonical WhatsApp pairing browser identity",
     )
-    if "NABEES_PROGRESS_REACTION_ROUTE" in source and "NABEES_PAIRING_CODE_FLOW" in source and "NABEES_AIRICH_RESPONSE" in source:
-        backup_and_write(path, source)
-        print("WhatsApp bridge already has Nabees features; pairing identity corrected.")
+    if ("NABEES_PROGRESS_REACTION_ROUTE" in source
+            and "NABEES_PAIRING_CODE_FLOW" in source
+            and "NABEES_AIRICH_RESPONSE_V2" in source
+            and "NABEES_LATEST_PROGRESS_REACTION" in source):
+        print("WhatsApp bridge already has the current Nabees features.")
         return
     source = replace_once(source, "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';",
         "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';", "ReactImg import")
     source = replace_once(source, "import { ReactImg } from './react_img.js';",
         "import { ReactImg } from './react_img.js';\nimport { sendNabeesAIRich } from './nabees_rich.js';", "Nabees AIRich import")
+    source = replace_once(source,
+        "const messageQueue = [];\\nconst MAX_QUEUE_SIZE = 100;",
+        """const messageQueue = [];
+const MAX_QUEUE_SIZE = 100;
+
+// NABEES_LATEST_INBOUND_KEYS: bounded per-chat source keys for safe progress reactions.
+const latestInboundMessageKeys = new Map();
+function rememberLatestInboundMessageKey(key) {
+  if (!key?.id || !key?.remoteJid) return;
+  const chatId = key.remoteJid;
+  latestInboundMessageKeys.delete(chatId);
+  latestInboundMessageKeys.set(chatId, { key: { ...key }, at: Date.now() });
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [jid, entry] of latestInboundMessageKeys) {
+    if (entry.at < cutoff) latestInboundMessageKeys.delete(jid);
+  }
+  while (latestInboundMessageKeys.size > 256) {
+    latestInboundMessageKeys.delete(latestInboundMessageKeys.keys().next().value);
+  }
+}""", "latest inbound message-key cache")
+    source = replace_once(source,
+        "      const event = await extractBridgeEvent({",
+        """      // Remember only messages that passed the WhatsApp intake policy.
+      rememberLatestInboundMessageKey(msg.key);
+      const event = await extractBridgeEvent({""", "latest accepted inbound message key")
     source = replace_once(source, "const DEFAULT_REPLY_PREFIX = '☤ *Hermes Agent*\\n────────────\\n';",
         "const DEFAULT_REPLY_PREFIX = ''; // NABEES_RICH_RESPONSE", "remove Hermes reply branding")
     source = replace_once(source, "let connectionState = 'disconnected';",
@@ -96,30 +123,38 @@ app.post('/react-sticker', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err?.message || 'Sticker reaction failed' }); }
 });
 
+// NABEES_LATEST_PROGRESS_REACTION: safely resolve the latest accepted inbound key for this chat.
+app.post('/react-sticker-latest', async (req, res) => {
+  if (!sock || connectionState !== 'connected') return res.status(503).json({ error: 'Not connected to WhatsApp' });
+  const { chatId, stage, associationType = 11 } = req.body || {};
+  const stages = new Set(['on-it', 'thinking', 'searching', 'coding', 'still-on-it', 'almost-done', 'done', 'error', 'approval']);
+  if (!chatId || !stages.has(stage)) return res.status(400).json({ error: 'chatId and a valid stage are required' });
+  const entry = latestInboundMessageKeys.get(chatId);
+  if (!entry || Date.now() - entry.at > 60 * 60 * 1000) {
+    return res.status(404).json({ error: 'No recent accepted inbound message exists for this chat' });
+  }
+  const allowedDir = path.resolve(path.join(path.dirname(SESSION_DIR), 'progress-stickers'));
+  const filePath = path.resolve(path.join(allowedDir, stage + '.webp'));
+  if (!filePath.startsWith(allowedDir + path.sep) || !existsSync(filePath)) {
+    return res.status(404).json({ error: 'Progress sticker asset not found: ' + stage });
+  }
+  try {
+    const sent = await enqueueSend(() => ReactImg.create(sock).send(chatId, {
+      parentMessageKey: entry.key, associationType, filePath
+    }));
+    res.json({ success: true, messageId: sent?.key?.id || null, parentMessageId: entry.key.id });
+  } catch (err) { res.status(500).json({ error: err?.message || 'Sticker reaction failed' }); }
+});
+
 // Typing indicator
 app.post('/typing', async (req, res) => {"""
     source = replace_once(source, anchor, route, "progress reaction route")
-    # Hermes bridge versions differ in whitespace and local variable formatting.
-    # Patch the sendWithTimeout call itself, preserving any surrounding assignment.
-    # Restrict the match to /send so media, polls, edits, and other routes stay untouched.
-    send_start = source.find("app.post('/send',")
-    send_end = source.find("// Edit a previously sent message", send_start)
-    if send_start < 0 or send_end < 0:
-        raise RuntimeError("Cannot safely locate the WhatsApp /send route for Nabees rich responses")
-    send_route = source[send_start:send_end]
-    pattern = re.compile(r"await\s+sendWithTimeout\s*\(\s*([^,]+?)\s*,\s*([^,]+?)\s*,\s*([^)]+?)\s*\)")
-    matches = list(pattern.finditer(send_route))
-    if len(matches) != 1:
-        raise RuntimeError("Cannot safely patch Nabees AIRich response in /send route: expected one sendWithTimeout call, found " + str(len(matches)))
-    match = matches[0]
-    chat_expr, payload_expr, _options_expr = (part.strip() for part in match.groups())
-    replacement = ("await enqueueSend(() => sendNabeesAIRich(sock, " + chat_expr + ", "
-                   "typeof (" + payload_expr + ")?.text === 'string' ? (" + payload_expr + ").text : "
-                   "typeof (" + payload_expr + ")?.extendedTextMessage?.text === 'string' ? "
-                   "(" + payload_expr + ").extendedTextMessage.text : String(" + payload_expr + " ?? ''))); "
-                   "// NABEES_AIRICH_RESPONSE")
-    send_route = send_route[:match.start()] + replacement + send_route[match.end():]
-    source = source[:send_start] + send_route + source[send_end:]
+    # Replace the observed /send call with the original NixCode AIRich transport.
+    # Exact matching is intentional: fail closed on a changed Hermes implementation.
+    old_send = "const sent = await sendWithTimeout(chatId, buildNabeesRichPayload(payload, i === 0), options);"
+    new_send = "const sent = await enqueueSend(() => sendNabeesAIRich(sock, chatId, String(payload?.text ?? ''))); // NABEES_AIRICH_RESPONSE_V2"
+    if "NABEES_AIRICH_RESPONSE_V2" not in source:
+        source = replace_once(source, old_send, new_send, "NixCode AIRich /send transport")
     backup_and_write(path, source)
 
 def patch_setup(path):
