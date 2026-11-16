@@ -107,16 +107,13 @@ The sticker endpoint supports Baileys messageAssociation type 11. The bridge cac
 
 ### Progress helper
 
-The installed skill instructs the agent to call this helper with the current inbound event identifiers:
+The installed skill instructs the agent to call this helper with the current inbound chat JID:
 
 ~~~bash
-python3 "$NABEES_WAGENT_HOME/scripts/progress.py" on-it \
-  --chat-id 'CHAT_JID' \
-  --message-id 'INBOUND_MESSAGE_ID' \
-  --participant 'SENDER_JID'
+python3 "$NABEES_WAGENT_HOME/scripts/progress.py" on-it --chat-id 'CURRENT_CHAT_JID'
 ~~~
 
-For direct chats, omit --participant. Never invent or reuse message identifiers. If the current turn does not expose the source chat/message IDs, continue without a sticker.
+The bridge selects the latest accepted inbound message key from that chat's private in-memory cache. An exact --message-id and optional --participant may still be supplied when the runtime provides them. Never guess or reuse a chat JID.
 
 ## Provider management
 
