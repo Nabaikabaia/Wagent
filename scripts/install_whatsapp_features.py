@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Patch installed Hermes WhatsApp bridge with Nabees pairing-code and sticker-reaction support."""
 from __future__ import annotations
-import os, re, shutil, sys
+import os, re, shutil, subprocess, sys
 from datetime import datetime
 from pathlib import Path
 
@@ -45,14 +45,14 @@ def patch_bridge(path):
         "browser: ['Mac OS', 'Chrome', '120.0'],",
         "canonical WhatsApp pairing browser identity",
     )
-    if "NABEES_PROGRESS_REACTION_ROUTE" in source and "NABEES_PAIRING_CODE_FLOW" in source and "NABEES_RICH_RESPONSE" in source:
+    if "NABEES_PROGRESS_REACTION_ROUTE" in source and "NABEES_PAIRING_CODE_FLOW" in source and "NABEES_AIRICH_RESPONSE" in source:
         backup_and_write(path, source)
         print("WhatsApp bridge already has Nabees features; pairing identity corrected.")
         return
     source = replace_once(source, "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';",
         "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';", "ReactImg import")
     source = replace_once(source, "import { ReactImg } from './react_img.js';",
-        "import { ReactImg } from './react_img.js';\nimport { buildNabeesRichPayload } from './nabees_rich.js';", "Nabees rich import")
+        "import { ReactImg } from './react_img.js';\nimport { sendNabeesAIRich } from './nabees_rich.js';", "Nabees AIRich import")
     source = replace_once(source, "const DEFAULT_REPLY_PREFIX = '☤ *Hermes Agent*\\n────────────\\n';",
         "const DEFAULT_REPLY_PREFIX = ''; // NABEES_RICH_RESPONSE", "remove Hermes reply branding")
     source = replace_once(source, "let connectionState = 'disconnected';",
@@ -108,9 +108,14 @@ app.post('/typing', async (req, res) => {"""
         raise RuntimeError("Cannot safely locate the WhatsApp /send route for Nabees rich responses")
     send_route = source[send_start:send_end]
     pattern = re.compile(r"await\s+sendWithTimeout\s*\(\s*chatId\s*,\s*payload\s*,\s*options\s*\)")
-    send_route, count = pattern.subn("await sendWithTimeout(chatId, buildNabeesRichPayload(payload, i === 0), options)", send_route)
+    replacement = ("await enqueueSend(() => sendNabeesAIRich(sock, chatId, "
+                   "typeof payload?.text === 'string' ? payload.text : "
+                   "typeof payload?.extendedTextMessage?.text === 'string' ? "
+                   "payload.extendedTextMessage.text : String(payload ?? ''))); "
+                   "// NABEES_AIRICH_RESPONSE")
+    send_route, count = pattern.subn(replacement, send_route)
     if count != 1:
-        raise RuntimeError("Cannot safely patch Nabees rich WhatsApp response in /send route: expected one sendWithTimeout(chatId, payload, options) call, found " + str(count))
+        raise RuntimeError("Cannot safely patch Nabees AIRich response in /send route: expected one sendWithTimeout(chatId, payload, options) call, found " + str(count))
     source = source[:send_start] + send_route + source[send_end:]
     backup_and_write(path, source)
 
@@ -156,7 +161,9 @@ def main():
         react_source = Path(__file__).with_name("react_img.js")
         if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))
         rich_source = Path(__file__).with_name("nabees_rich.js")
-        if not rich_source.is_file(): raise RuntimeError("Missing Nabees rich-response module: " + str(rich_source))
+        if not rich_source.is_file(): raise RuntimeError("Missing Nabees AIRich adapter: " + str(rich_source))
+        vendor_source = Path(__file__).parent / "vendor" / "nixcode.js"
+        if not vendor_source.is_file(): raise RuntimeError("Missing original NixCode AIRich source: " + str(vendor_source))
         react_dest = bridge.parent / "react_img.js"
         if not react_dest.exists() or react_dest.read_bytes() != react_source.read_bytes():
             if react_dest.exists():
@@ -169,6 +176,14 @@ def main():
                 stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                 shutil.copy2(rich_dest, rich_dest.with_name("nabees_rich.js.nabees-backup-" + stamp))
             shutil.copy2(rich_source, rich_dest)
+        vendor_dest = bridge.parent / "nixcode.js"
+        if not vendor_dest.exists() or vendor_dest.read_bytes() != vendor_source.read_bytes():
+            if vendor_dest.exists():
+                stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                shutil.copy2(vendor_dest, vendor_dest.with_name("nixcode.js.nabees-backup-" + stamp))
+            shutil.copy2(vendor_source, vendor_dest)
+        print("Installing AIRich runtime dependencies (sharp, fluent-ffmpeg)...")
+        subprocess.run(["npm", "install", "--prefix", str(bridge.parent), "--no-save", "sharp", "fluent-ffmpeg"], check=True)
         patch_bridge(bridge); patch_setup(setup); set_env_mode()
         print("\\nNabees WhatsApp features installed.")
         print("Next: npm run build:stickers -- ~/.hermes/whatsapp/progress-stickers")
