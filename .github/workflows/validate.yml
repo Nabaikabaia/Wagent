@@ -6,13 +6,21 @@ on:
   pull_request:
 
 jobs:
-  python:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - run: pip install -r requirements.txt
-      - run: python -m py_compile scripts/provider_manager.py
+      - run: python -m py_compile scripts/provider_manager.py scripts/progress.py scripts/install_whatsapp_features.py
       - run: python scripts/provider_manager.py --help
+      - run: python scripts/progress.py --help
+      - run: npm install --no-audit --no-fund
+      - run: node --check scripts/build_progress_stickers.mjs
+      - run: node --check scripts/react_img.js
+      - run: npm run build:stickers -- "$RUNNER_TEMP/progress-stickers"
