@@ -96,7 +96,7 @@ app.post('/react-sticker', async (req, res) => {
 
 // Typing indicator
 app.post('/typing', async (req, res) => {"""
-    source = replace_once(source, anchor, route, "progress reaction route")\n    source = replace_once(source, "        const sent = await sendWithTimeout(chatId, payload, options);",\n        "        const nabeesPayload = buildNabeesRichPayload(payload, i === 0); // NABEES_RICH_RESPONSE\\n        const sent = await sendWithTimeout(chatId, nabeesPayload, options);",\n        "Nabees rich WhatsApp response")
+    source = replace_once(source, anchor, route, "progress reaction route")\n    source = replace_once(source, "        const sent = await sendWithTimeout(chatId, payload, options);",\n        "        const nabeesPayload = buildNabeesRichPayload(payload, i === 0); // NABEES_RICH_RESPONSE\n        const sent = await sendWithTimeout(chatId, nabeesPayload, options);",\n        "Nabees rich WhatsApp response")
     backup_and_write(path, source)
 
 def patch_setup(path):
@@ -139,7 +139,8 @@ def main():
     try:
         bridge, setup = resolve_targets()
         react_source = Path(__file__).with_name("react_img.js")
-        if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))\n        rich_source = Path(__file__).with_name("nabees_rich.js")
+        if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))
+        rich_source = Path(__file__).with_name("nabees_rich.js")
         if not rich_source.is_file(): raise RuntimeError("Missing Nabees rich-response module: " + str(rich_source))
         react_dest = bridge.parent / "react_img.js"
         if not react_dest.exists() or react_dest.read_bytes() != react_source.read_bytes():
