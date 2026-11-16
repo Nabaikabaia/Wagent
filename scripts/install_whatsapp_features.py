@@ -157,7 +157,8 @@ def main():
         if not rich_dest.exists() or rich_dest.read_bytes() != rich_source.read_bytes():
             if rich_dest.exists():
                 stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                shutil.copy2(rich_dest, rich_dest.with_name("nabees_rich.js.nabees-backup-" + stamp))\n            shutil.copy2(rich_source, rich_dest)
+                shutil.copy2(rich_dest, rich_dest.with_name("nabees_rich.js.nabees-backup-" + stamp))
+            shutil.copy2(rich_source, rich_dest)
         patch_bridge(bridge); patch_setup(setup); set_env_mode()
         print("\\nNabees WhatsApp features installed.")
         print("Next: npm run build:stickers -- ~/.hermes/whatsapp/progress-stickers")
