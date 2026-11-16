@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Patch installed Hermes WhatsApp bridge with Nabees pairing-code and sticker-reaction support."""
 from __future__ import annotations
-import os, shutil, sys
+import os, re, shutil, sys
 from datetime import datetime
 from pathlib import Path
 
@@ -99,9 +99,19 @@ app.post('/react-sticker', async (req, res) => {
 // Typing indicator
 app.post('/typing', async (req, res) => {"""
     source = replace_once(source, anchor, route, "progress reaction route")
-    source = replace_once(source, "        const sent = await sendWithTimeout(chatId, payload, options);",
-        "        const nabeesPayload = buildNabeesRichPayload(payload, i === 0); // NABEES_RICH_RESPONSE\n        const sent = await sendWithTimeout(chatId, nabeesPayload, options);",
-        "Nabees rich WhatsApp response")
+    # Hermes bridge versions differ in whitespace and local variable formatting.
+    # Patch the sendWithTimeout call itself, preserving any surrounding assignment.
+    # Restrict the match to /send so media, polls, edits, and other routes stay untouched.
+    send_start = source.find("app.post('/send',")
+    send_end = source.find("// Edit a previously sent message", send_start)
+    if send_start < 0 or send_end < 0:
+        raise RuntimeError("Cannot safely locate the WhatsApp /send route for Nabees rich responses")
+    send_route = source[send_start:send_end]
+    pattern = re.compile(r"await\\s+sendWithTimeout\\s*\\(\\s*chatId\\s*,\\s*payload\\s*,\\s*options\\s*\\)")
+    send_route, count = pattern.subn("await sendWithTimeout(chatId, buildNabeesRichPayload(payload, i === 0), options)", send_route)
+    if count != 1:
+        raise RuntimeError("Cannot safely patch Nabees rich WhatsApp response in /send route: expected one sendWithTimeout(chatId, payload, options) call, found " + str(count))
+    source = source[:send_start] + send_route + source[send_end:]
     backup_and_write(path, source)
 
 def patch_setup(path):
