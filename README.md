@@ -48,7 +48,7 @@ pip install -r requirements.txt
 npm install
 ~~~
 
-Install the provider manager, progress sticker and file-workbench skills:
+Install the provider manager, progress sticker, file-workbench and chat-routing skills:
 
 ~~~bash
 bash scripts/install_skill.sh
