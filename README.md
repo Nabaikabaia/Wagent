@@ -9,7 +9,7 @@ The design goal is provider independence: add API base URLs, API keys and model 
 - Runtime: upstream Hermes Agent, patched locally by the Nabees installer (not a fork)
 - Messaging: Hermes WhatsApp bridge (Baileys), with NixCode AIRich responses, ChatGPT-5 title metadata, and a consistent OpenAI contact-card quote
 - Authentication: phone-number pairing code; QR display is disabled for the Nabees pairing flow
-- Progress: cached WebP stickers sent as association reactions to the original WhatsApp task message
+- Progress: cached WebP sticker assets and authenticated reaction endpoint; automatic lifecycle-to-inbound-message association still requires runtime bridge wiring
 - Hosting target: Linux container / Upstash Box
 - AI: named custom OpenAI-compatible provider profiles
 - Tools: Hermes terminal, files, browser, skills, MCP and delegation
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 npm install
 ~~~
 
-Install the provider manager and progress sticker skills:
+Install the provider manager, progress sticker and file-workbench skills:
 
 ~~~bash
 bash scripts/install_skill.sh
@@ -103,7 +103,7 @@ Send the linked bot/self-chat a task. For tasks expected to take more than about
 - OOPS — failure
 - YOUR MOVE — owner approval needed
 
-The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result arrives as a Nabees-branded WhatsApp response. Every response carries the OpenAI contact-card quote. Markdown text is sent through AIRich, and fenced code blocks use AIRich code sections. No Nabees name is stamped onto each message. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
+The sticker endpoint supports Baileys messageAssociation type 11. The current helper requires the exact inbound message key; automatic lifecycle wiring is not yet complete, so do not claim stickers were sent unless the bridge confirms success. The actual result arrives as a Nabees-branded WhatsApp response. Every response carries the OpenAI contact-card quote. Markdown text is sent through AIRich, and fenced code blocks use AIRich code sections. No Nabees name is stamped onto each message. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
 
 ### Progress helper
 
@@ -145,7 +145,7 @@ A successful text-chat test does not prove full agentic compatibility. Verify to
 - Ask for owner approval before destructive actions, purchases, external publication, third-party messaging and security/access changes.
 - Baileys is an unofficial WhatsApp Web client. Use a dedicated number where possible and avoid bulk or unsolicited messaging; account restrictions are possible.
 - The Nabees patcher is version-sensitive. It checks exact upstream source anchors and stops if the installed Hermes version differs. Backups are created before each modified source file is written.
-- The anonymous android.chat.openai.com web-chat endpoint is not an official stable API and is not the same as an OpenAI-compatible tool-calling provider. Do not use it as the sole agentic model backend.
+- The file-workbench skill instructs the agent to inspect real attachments, analyze documents and source projects, compile/build outputs, and deliver generated artifacts as native WhatsApp files to the active chat. It also explicitly forbids reusing a recipient from another conversation.\n\nThe anonymous android.chat.openai.com web-chat endpoint is not an official stable API and is not the same as an OpenAI-compatible tool-calling provider. Do not use it as the sole agentic model backend.
 
 ## Upstream documentation
 
