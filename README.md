@@ -7,7 +7,7 @@ The design goal is provider independence: add API base URLs, API keys and model 
 ## Architecture
 
 - Runtime: upstream Hermes Agent, patched locally by the Nabees installer (not a fork)
-- Messaging: Hermes WhatsApp bridge (Baileys)
+- Messaging: Hermes WhatsApp bridge (Baileys), with Nabees-branded native rich-text responses and an OpenAI contact-card quote
 - Authentication: phone-number pairing code; QR display is disabled for the Nabees pairing flow
 - Progress: cached WebP stickers sent as association reactions to the original WhatsApp task message
 - Hosting target: Linux container / Upstash Box
@@ -103,7 +103,7 @@ Send the linked bot/self-chat a task. For tasks expected to take more than about
 - OOPS — failure
 - YOUR MOVE — owner approval needed
 
-The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result still arrives as a normal WhatsApp response.
+The sticker is associated with the inbound message using Baileys messageAssociation type 11. Progress updates are sent only at meaningful milestones (normally 2–4 per task), not on every tool call. The actual result arrives as a Nabees-branded WhatsApp response. The first response chunk carries the OpenAI contact-card quote, Markdown tables are rendered as readable labelled rows, and WhatsApp-native bold/italic/monospace formatting is retained. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
 
 ### Progress helper
 
