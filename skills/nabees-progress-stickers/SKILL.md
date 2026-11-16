@@ -17,17 +17,17 @@ Use this capability for WhatsApp tasks that require sustained work. These are me
 
 ## Required message context
 
-Use the current inbound WhatsApp event's exact chat_id, message_id and, for group messages, sender_id / participant JID. Never guess or reuse identifiers from another turn. If the current turn does not expose these identifiers, do not fabricate them; continue without a sticker.
+Use the current inbound WhatsApp event's exact chat_id. Never guess a recipient or reuse a chat ID from another turn. The bridge keeps a bounded, one-hour cache of accepted inbound message keys separately for each chat, so the helper does not need a fabricated message ID or participant. If the current turn does not expose its current chat_id, do not send a reaction.
 
 ## Command
 
 Run the helper from the Wagent checkout:
 
-    python3 "$NABEES_WAGENT_HOME/scripts/progress.py" on-it --chat-id 'CHAT_JID' --message-id 'INBOUND_MESSAGE_ID' --participant 'SENDER_JID'
+    python3 "$NABEES_WAGENT_HOME/scripts/progress.py" on-it --chat-id 'CURRENT_CHAT_JID'
 
-Available stages: on-it, thinking, searching, coding, still-on-it, almost-done, done, error, approval.
+Use the same current chat JID for later stages. Available stages: on-it, thinking, searching, coding, still-on-it, almost-done, done, error, approval.
 
-For direct chats, omit --participant. The helper reads the private bridge token and sends a cached WebP through the authenticated local bridge. It never prints the token.
+The bridge resolves the latest accepted inbound message key for that exact chat and sends the associated WebP reaction through the authenticated local endpoint. The helper reads the private bridge token and never prints it. The explicit --message-id option remains available when an exact message key is already supplied by the runtime.
 
 ## Requirements
 
