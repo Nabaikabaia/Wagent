@@ -1,38 +1,26 @@
 #!/usr/bin/env python3
 """Patch installed Hermes WhatsApp bridge with Nabees pairing-code and sticker-reaction support."""
 from __future__ import annotations
-import os, shlex, shutil, subprocess, sys
+import os, shutil, sys
 from datetime import datetime
 from pathlib import Path
 
-def hermes_python():
-    executable = shutil.which("hermes")
-    if not executable: return None
-    try:
-        first = Path(executable).read_text(encoding="utf-8").splitlines()[0]
-        if first.startswith("#!"):
-            parts = shlex.split(first[2:].strip())
-            if parts and Path(parts[0]).name == "env" and len(parts) > 1:
-                candidate = shutil.which(parts[1])
-            else:
-                candidate = parts[0] if parts else None
-            if candidate and Path(candidate).is_file(): return candidate
-    except (OSError, IndexError): pass
-    return None
-
-def maybe_reexec():
-    if os.environ.get("NABEES_INSTALLER_REEXEC") == "1": return
-    candidate = hermes_python()
-    if candidate and Path(candidate).resolve() != Path(sys.executable).resolve():
-        env = dict(os.environ, NABEES_INSTALLER_REEXEC="1")
-        probe = subprocess.run([candidate, "-c", "import gateway.platforms.whatsapp_common, hermes_cli.main_platform_setup"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, check=False)
-        if probe.returncode == 0: os.execve(candidate, [candidate, __file__, *sys.argv[1:]], env)
-
 def resolve_targets():
-    from gateway.platforms.whatsapp_common import resolve_whatsapp_bridge_dir
-    import hermes_cli.main_platform_setup as setup_module
-    return Path(resolve_whatsapp_bridge_dir()) / "bridge.js", Path(setup_module.__file__)
+    # Hermes is installed as a self-contained source tree with a bundled Python
+    # launcher (often invoked with -I). Do not import Hermes modules using the
+    # Wagent venv: that environment cannot see Hermes' isolated package path.
+    home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")).expanduser()
+    candidates = [
+        (home / "hermes-agent" / "scripts" / "whatsapp-bridge" / "bridge.js",
+         home / "hermes-agent" / "hermes_cli" / "main_platform_setup.py"),
+        (home / "scripts" / "whatsapp-bridge" / "bridge.js",
+         home / "hermes_cli" / "main_platform_setup.py"),
+    ]
+    for bridge, setup in candidates:
+        if bridge.is_file() and setup.is_file():
+            return bridge, setup
+    tried = "\\n".join(f"  {bridge} | {setup}" for bridge, setup in candidates)
+    raise RuntimeError("Could not locate Hermes WhatsApp bridge and setup wizard under HERMES_HOME=" + str(home) + "\\nTried:\\n" + tried)
 
 def replace_once(source, old, new, label):
     if new in source: return source
@@ -130,12 +118,11 @@ def set_env_mode():
         if line.startswith(key + "="): lines[index] = key + '="pairing-code"'; found = True
     if not found: lines.append(key + '="pairing-code"')
     temp = env_file.with_suffix(".env.nabees.tmp")
-    temp.write_text("\\n".join(lines).rstrip() + "\\n", encoding="utf-8")
+    temp.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     os.chmod(temp, 0o600); temp.replace(env_file)
     print("Set " + key + "=pairing-code in " + str(env_file))
 
 def main():
-    maybe_reexec()
     try:
         bridge, setup = resolve_targets()
         react_source = Path(__file__).with_name("react_img.js")
