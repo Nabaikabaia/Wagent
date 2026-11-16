@@ -36,8 +36,19 @@ def backup_and_write(path, source):
 
 def patch_bridge(path):
     source = path.read_text(encoding="utf-8")
+    # Baileys pairing-code validation rejects Hermes' custom OS label
+    # ("Hermes Agent") inside companion_platform_display. Keep the public
+    # linked-device identity canonical so WhatsApp receives "Chrome (Mac OS)".
+    source = replace_once(
+        source,
+        "browser: ['Hermes Agent', 'Chrome', '120.0'],",
+        "browser: ['Mac OS', 'Chrome', '120.0'],",
+        "canonical WhatsApp pairing browser identity",
+    )
     if "NABEES_PROGRESS_REACTION_ROUTE" in source and "NABEES_PAIRING_CODE_FLOW" in source:
-        print("WhatsApp bridge already has Nabees features."); return
+        backup_and_write(path, source)
+        print("WhatsApp bridge already has Nabees features; pairing identity corrected.")
+        return
     source = replace_once(source, "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';",
         "import { attachPasskeyFlow, loadPasskeySigner } from './passkey_socket.js';\nimport { ReactImg } from './react_img.js';", "ReactImg import")
     source = replace_once(source, "let connectionState = 'disconnected';",
