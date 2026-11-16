@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Patch installed Hermes WhatsApp bridge with Nabees pairing-code and sticker-reaction support."""
 from __future__ import annotations
-import os, shutil, subprocess, sys
+import os, shlex, shutil, subprocess, sys
 from datetime import datetime
 from pathlib import Path
 
@@ -11,8 +11,12 @@ def hermes_python():
     try:
         first = Path(executable).read_text(encoding="utf-8").splitlines()[0]
         if first.startswith("#!"):
-            candidate = first[2:].strip().split()[0]
-            if Path(candidate).is_file(): return candidate
+            parts = shlex.split(first[2:].strip())
+            if parts and Path(parts[0]).name == "env" and len(parts) > 1:
+                candidate = shutil.which(parts[1])
+            else:
+                candidate = parts[0] if parts else None
+            if candidate and Path(candidate).is_file(): return candidate
     except (OSError, IndexError): pass
     return None
 
@@ -137,7 +141,11 @@ def main():
         react_source = Path(__file__).with_name("react_img.js")
         if not react_source.is_file(): raise RuntimeError("Missing ReactImg module: " + str(react_source))
         react_dest = bridge.parent / "react_img.js"
-        if not react_dest.exists(): shutil.copy2(react_source, react_dest)
+        if not react_dest.exists() or react_dest.read_bytes() != react_source.read_bytes():
+            if react_dest.exists():
+                stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                shutil.copy2(react_dest, react_dest.with_name("react_img.js.nabees-backup-" + stamp))
+            shutil.copy2(react_source, react_dest)
         patch_bridge(bridge); patch_setup(setup); set_env_mode()
         print("\\nNabees WhatsApp features installed.")
         print("Next: npm run build:stickers -- ~/.hermes/whatsapp/progress-stickers")
