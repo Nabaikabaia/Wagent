@@ -56,7 +56,7 @@ def patch_bridge(path):
     source = replace_once(source, "import { ReactImg } from './react_img.js';",
         "import { ReactImg } from './react_img.js';\nimport { sendNabeesAIRich } from './nabees_rich.js';", "Nabees AIRich import")
     source = replace_once(source,
-        "const messageQueue = [];\\nconst MAX_QUEUE_SIZE = 100;",
+        "const messageQueue = [];\nconst MAX_QUEUE_SIZE = 100;",
         """const messageQueue = [];
 const MAX_QUEUE_SIZE = 100;
 
