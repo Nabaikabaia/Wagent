@@ -65,11 +65,11 @@ def patch_bridge(path):
             try {
               phoneNumber = (await terminal.question('WhatsApp number to link (country code + digits only, no + or spaces): ')).trim();
             } finally { terminal.close(); }
-            if (!/^\\\\d{8,15}$/.test(phoneNumber)) throw new Error('Use 8-15 digits including country calling code.');
+            if (!/^\\d{8,15}$/.test(phoneNumber)) throw new Error('Use 8-15 digits including country calling code.');
             const code = await sock.requestPairingCode(phoneNumber);
-            console.log('\\\\nWhatsApp pairing code: ' + code + '\\\\n');
+            console.log('\\nWhatsApp pairing code: ' + code + '\\n');
             console.log('On your phone: WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead.');
-            console.log('Enter the code above. Waiting for WhatsApp to finish linking...\\\\n');
+            console.log('Enter the code above. Waiting for WhatsApp to finish linking...\\n');
           })().catch((error) => { console.error('Pairing-code request failed: ' + error.message); process.exit(1); });
         }
       } else if (PAIR_JSON) {""", "pair-code QR event handler")
