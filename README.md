@@ -9,7 +9,7 @@ The design goal is provider independence: add API base URLs, API keys and model 
 - Runtime: upstream Hermes Agent, patched locally by the Nabees installer (not a fork)
 - Messaging: Hermes WhatsApp bridge (Baileys), with NixCode AIRich responses, ChatGPT-5 title metadata, and a consistent OpenAI contact-card quote
 - Authentication: phone-number pairing code; QR display is disabled for the Nabees pairing flow
-- Progress: cached WebP sticker assets and authenticated reaction endpoint; automatic lifecycle-to-inbound-message association still requires runtime bridge wiring
+- Progress: cached WebP sticker assets, authenticated reaction endpoint, and a bounded per-chat cache of accepted inbound message keys for safe milestone reactions
 - Hosting target: Linux container / Upstash Box
 - AI: named custom OpenAI-compatible provider profiles
 - Tools: Hermes terminal, files, browser, skills, MCP and delegation
@@ -103,7 +103,7 @@ Send the linked bot/self-chat a task. For tasks expected to take more than about
 - OOPS — failure
 - YOUR MOVE — owner approval needed
 
-The sticker endpoint supports Baileys messageAssociation type 11. The current helper requires the exact inbound message key; automatic lifecycle wiring is not yet complete, so do not claim stickers were sent unless the bridge confirms success. The actual result arrives as a Nabees-branded WhatsApp response. Every response carries the OpenAI contact-card quote. Markdown text is sent through AIRich, and fenced code blocks use AIRich code sections. No Nabees name is stamped onto each message. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
+The sticker endpoint supports Baileys messageAssociation type 11. The bridge caches the latest accepted inbound message key per chat (bounded to 256 chats and one hour); the helper can therefore react using only the current chat JID, without fabricating a message ID. The agent must invoke the progress skill at meaningful milestones, and must not claim a reaction was sent unless the bridge confirms success. Normal replies use the NixCode AIRich transport with ChatGPT-5 title metadata and the OpenAI contact-card quote. Fenced code blocks use AIRich code sections. No Nabees name is stamped onto each message. The Hermes Agent reply banner is removed; the Hermes runtime remains underneath.
 
 ### Progress helper
 
