@@ -9,7 +9,8 @@ const stages = {
   coding: 'COOKING', 'still-on-it': 'STILL ON IT',
   'almost-done': 'ALMOST DONE', done: 'DONE', error: 'OOPS', approval: 'YOUR MOVE'
 };
-const output = path.resolve(process.argv[2] || path.join(os.homedir(), '.hermes', 'whatsapp', 'progress-stickers'));
+const hermesHome = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
+const output = path.resolve(process.argv[2] || path.join(hermesHome, 'whatsapp', 'progress-stickers'));
 await mkdir(output, { recursive: true });
 
 function makeSvg(label, stage) {
